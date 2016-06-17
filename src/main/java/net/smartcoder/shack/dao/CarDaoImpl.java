@@ -40,7 +40,7 @@ public class CarDaoImpl extends AbstractDao<Long, Car> implements CarDao {
 	@Override
 	public Car findCarBySerial(Integer serial) {
 		Criteria criteria = createEntityCriteria();
-		criteria.add(Restrictions.eqOrIsNull("serial", serial));
+		criteria.add(Restrictions.eq("serial", serial));
 		return (Car)criteria.uniqueResult();
 	}
 

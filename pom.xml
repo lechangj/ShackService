@@ -10,7 +10,8 @@
 
 	<properties>
 		<jdk.version>1.8</jdk.version>
-		<spring.version>4.0.6.RELEASE</spring.version>
+		<spring.version>4.1.6.RELEASE</spring.version>
+		<springsecurity.version>4.0.1.RELEASE</springsecurity.version>
 		<hibernate.version>4.3.0.Final</hibernate.version>
 		<jackson.version>2.5.3</jackson.version>
 		<javax.validation.version>1.1.0.Final</javax.validation.version>
@@ -21,6 +22,7 @@
 		<javaee-web-api.version>7.0</javaee-web-api.version>
 		<dbcp.version>7.0.55</dbcp.version>
 		<tomcat-maven.version>2.2</tomcat-maven.version>
+		<org.slf4j.version>1.7.7</org.slf4j.version>
         
 	</properties>
 	<dependencies>
@@ -49,6 +51,19 @@
 		    <artifactId>jackson-databind</artifactId>
 		    <version>${jackson.version}</version>
 		</dependency>	
+ 
+        <!-- Spring Security -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-web</artifactId>
+            <version>${springsecurity.version}</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-config</artifactId>
+            <version>${springsecurity.version}</version>
+        </dependency>
 		
         <!-- JDBC Connection Pool -->
 		<dependency>
@@ -102,6 +117,12 @@
 			<artifactId>junit</artifactId>
 			<version>${junit.version}</version>
 			<scope>test</scope>
+		</dependency>
+		
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-log4j12</artifactId>
+			<version>${org.slf4j.version}</version>
 		</dependency>
 
 		<!-- Servlet+JSP+JSTL -->
