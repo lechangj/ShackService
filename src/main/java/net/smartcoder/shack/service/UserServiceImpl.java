@@ -2,11 +2,13 @@ package net.smartcoder.shack.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import net.smartcoder.shack.dao.UserDao;
 import net.smartcoder.shack.model.User;
 
 @Service("userService")
+@Transactional
 public class UserServiceImpl implements UserService {
 	
 	@Autowired

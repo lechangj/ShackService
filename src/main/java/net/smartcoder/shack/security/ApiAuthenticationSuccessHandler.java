@@ -6,6 +6,8 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.core.Authentication;
@@ -20,6 +22,8 @@ import net.smartcoder.shack.service.UserService;
 @Component
 public class ApiAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 	
+	static final Logger log = LoggerFactory.getLogger(ApiAuthenticationSuccessHandler.class);
+	
 	@Autowired
 	private UserService userService;
 
@@ -32,6 +36,7 @@ public class ApiAuthenticationSuccessHandler implements AuthenticationSuccessHan
 			Authentication authentication) throws IOException, ServletException {
 		User user = userService.findByUsername(authentication.getName());
 		UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+		log.info(userDetails.toString());
         SecurityUtils.sendResponse(response, HttpServletResponse.SC_OK, user, userDetails);
 		
 	}

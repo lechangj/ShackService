@@ -34,7 +34,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.authentication.preauth.AbstractPreAuthenticatedProcessingFilter;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationProvider;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
@@ -48,6 +47,8 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.WebUtils;
 
+import net.smartcoder.shack.ServerConstants;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
@@ -57,6 +58,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     private static final String USERNAME = "username";
     private static final String PASSWORD = "password";
     private static final String API_CAR_URL = "/api/car/**";
+    private static final String API_CAR_LIST_URL = "/api/car/list";
     private static final String API_USER_URL = "/api/**";
 	private static final String API_LOGIN_URL = "/api/authenticate";
 	private static final String REMEMBER_ME_KEY = "remember-me";
@@ -86,34 +88,31 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 		auth.authenticationProvider(authenticationProvider());
 	}
 
-//    @Bean(name="myAuthenticationManager")
-//	@Override
-//    public AuthenticationManager authenticationManagerBean() throws Exception {
-//        return super.authenticationManagerBean();
-//    }
+    @Bean(name="myAuthenticationManager")
+	@Override
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
 
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
 
 		http.authorizeRequests()
-        		.antMatchers(API_CAR_URL, API_LOGIN_URL).permitAll()
+        		.antMatchers(API_CAR_LIST_URL).permitAll()
 				.anyRequest().authenticated()
-                .antMatchers(API_USER_URL).hasRole("USER")
-                .antMatchers(API_LOGIN_URL).anonymous();
+                .antMatchers(API_USER_URL).hasRole("USER");
+//                .antMatchers(API_LOGIN_URL).anonymous();
 		
 		http.exceptionHandling()
 				.authenticationEntryPoint(restAuthenticationEntryPoint)
 				.accessDeniedHandler(restAccessDeniedHandler);	
 		
-		http.csrf().disable();
-//			.csrfTokenRepository(csrfTokenRepository()).and()
-//			.addFilterAfter(csrfHeaderFilter(), CsrfFilter.class);
+		http.csrf()
+			.csrfTokenRepository(csrfTokenRepository()).and()
+			.addFilterAfter(csrfHeaderFilter(), CsrfFilter.class);
 		
-//		http.addFilterBefore(authFilter(), UsernamePasswordAuthenticationFilter.class)
-//		.addFilterAfter(authFilter(), ApiRequestHeaderAuthenticationFilter.class)
-//			.addFilter(preAuthFilter());
-		
-		http.addFilterBefore(authenticationTokenProcessingFilter(), AbstractPreAuthenticatedProcessingFilter.class);
+		http.addFilterAfter(authFilter(), ApiRequestHeaderAuthenticationFilter.class)
+			.addFilter(preAuthFilter());
 
 	}
 
@@ -131,7 +130,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	public DaoAuthenticationProvider authenticationProvider() {
 		DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider();
 		authenticationProvider.setUserDetailsService(userDetailsService);
-//		authenticationProvider.setPasswordEncoder(passwordEncoder());
+		authenticationProvider.setPasswordEncoder(passwordEncoder());
 		return authenticationProvider;
 	}
 
@@ -193,13 +192,14 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 			protected void doFilterInternal(HttpServletRequest request,
 					HttpServletResponse response, FilterChain filterChain)
 					throws ServletException, IOException {
-				CsrfToken csrf = (CsrfToken) request.getAttribute(CsrfToken.class
-						.getName());
+				CsrfToken csrf = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+				log.debug("csrf: " + csrf);
 				if (csrf != null) {
-					Cookie cookie = WebUtils.getCookie(request, "XSRF-TOKEN");
+					Cookie cookie = WebUtils.getCookie(request, ServerConstants.XSRF_TOKEN);
 					String token = csrf.getToken();
+					log.info("token: " + token);
 					if (cookie==null || token!=null && !token.equals(cookie.getValue())) {
-						cookie = new Cookie("XSRF-TOKEN", token);
+						cookie = new Cookie(ServerConstants.XSRF_TOKEN, token);
 						cookie.setPath(request.getContextPath());
 						response.addCookie(cookie);
 					}
@@ -211,7 +211,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 	private CsrfTokenRepository csrfTokenRepository() {
 		HttpSessionCsrfTokenRepository repository = new HttpSessionCsrfTokenRepository();
-		repository.setHeaderName("X-XSRF-TOKEN");
+		repository.setHeaderName(ServerConstants.X_XSRF_TOKEN);
 		return repository;
 	}
 	
