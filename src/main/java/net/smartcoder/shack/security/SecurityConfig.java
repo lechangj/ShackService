@@ -10,6 +10,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.sql.DataSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.RememberMeAuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -35,8 +37,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationProvider;
+import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
@@ -61,7 +65,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     private static final String API_CAR_LIST_URL = "/api/car/list";
     private static final String API_USER_URL = "/api/**";
 	private static final String API_LOGIN_URL = "/api/authenticate";
-	private static final String REMEMBER_ME_KEY = "remember-me";
+	private static final String REMEMBER_ME_KEY = "shack-key";
+	private static final String REMEMBER_ME_PARAMETER = "remember-me";
 
 	@Autowired
 	@Qualifier("customUserDetailsService")
@@ -73,26 +78,32 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     private ApiAuthenticationFailureHandler apiAuthenticationFailureHandler;
 
-	PersistentTokenRepository tokenRepository;
-
     @Autowired
     private RestAuthenticationEntryPoint restAuthenticationEntryPoint;
 
     @Autowired
     private AccessDeniedHandler restAccessDeniedHandler;
+    
+    @Autowired
+    DataSource dataSource;
 
 	@Autowired
-	public void configureGlobalSecurity(AuthenticationManagerBuilder auth) throws Exception {
+	public void configure(AuthenticationManagerBuilder auth) throws Exception {
 
 		auth.userDetailsService(userDetailsService);
-		auth.authenticationProvider(authenticationProvider());
-	}
+		
+		DaoAuthenticationProvider daoProvider = new DaoAuthenticationProvider();
+		daoProvider.setUserDetailsService(userDetailsService);
+		daoProvider.setPasswordEncoder(passwordEncoder());
+		auth.authenticationProvider(daoProvider);		
 
-    @Bean(name="myAuthenticationManager")
-	@Override
-    public AuthenticationManager authenticationManagerBean() throws Exception {
-        return super.authenticationManagerBean();
-    }
+        PreAuthenticatedAuthenticationProvider preAuthProvider = new PreAuthenticatedAuthenticationProvider();
+        auth.authenticationProvider(preAuthProvider);
+		
+		RememberMeAuthenticationProvider rememberMeProvider = 
+				new RememberMeAuthenticationProvider(REMEMBER_ME_KEY);
+		auth.authenticationProvider(rememberMeProvider);
+	}
 
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
@@ -112,7 +123,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 			.addFilterAfter(csrfHeaderFilter(), CsrfFilter.class);
 		
 		http.addFilterAfter(authFilter(), ApiRequestHeaderAuthenticationFilter.class)
-			.addFilter(preAuthFilter());
+			.addFilter(preAuthFilter())
+			.addFilterBefore(getRememberMeAuthenticationFilter(), RememberMeAuthenticationFilter.class);
 
 	}
 
@@ -124,21 +136,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	@Bean
 	public PasswordEncoder passwordEncoder() {
 		return new BCryptPasswordEncoder();
-	}
-
-	@Bean
-	public DaoAuthenticationProvider authenticationProvider() {
-		DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider();
-		authenticationProvider.setUserDetailsService(userDetailsService);
-		authenticationProvider.setPasswordEncoder(passwordEncoder());
-		return authenticationProvider;
-	}
-
-	@Bean
-	public PersistentTokenBasedRememberMeServices getPersistentTokenBasedRememberMeServices() {
-		PersistentTokenBasedRememberMeServices tokenBasedService = new PersistentTokenBasedRememberMeServices(
-				REMEMBER_ME_KEY, userDetailsService, tokenRepository);
-		return tokenBasedService;
 	}
 	
 	@Bean
@@ -161,7 +158,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         filter.setUsernameParameter(USERNAME);
         filter.setPasswordParameter(PASSWORD);
         filter.setRequiresAuthenticationRequestMatcher(reqMatch);
-        filter.setAuthenticationManager(authenticationManagerBean());
+        filter.setAuthenticationManager(authenticationManager());
+        filter.setRememberMeServices(getPersistentTokenBasedRememberMeServices());
         filter.setAuthenticationSuccessHandler(apiAuthenticationSuccessHandler);
         filter.setAuthenticationFailureHandler(apiAuthenticationFailureHandler);
 
@@ -169,21 +167,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean(name = "preAuthFilter")
-    public Filter preAuthFilter() {
+    public Filter preAuthFilter() throws Exception {
         log.info("Creating preAuthFilter...");
         ApiRequestHeaderAuthenticationFilter filter = new ApiRequestHeaderAuthenticationFilter();
-        filter.setAuthenticationManager(preAuthAuthenticationManager());
+        filter.setAuthenticationManager(authenticationManager());
         return filter;
-    }
-
-    @Bean(name = "preAuthAuthenticationManager")
-    public AuthenticationManager preAuthAuthenticationManager() {
-        PreAuthenticatedAuthenticationProvider preAuthProvider = new PreAuthenticatedAuthenticationProvider();
-
-        List<AuthenticationProvider> providers = new ArrayList<AuthenticationProvider>();
-        providers.add(preAuthProvider);
-
-        return new ProviderManager(providers);
     }
 
 	private Filter csrfHeaderFilter() {
@@ -218,6 +206,29 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	@Bean(name = "authenticationTokenProcessingFilter")
 	public AuthenticationTokenProcessingFilter authenticationTokenProcessingFilter(){
 		return new AuthenticationTokenProcessingFilter(userDetailsService);
+	}
+	
+	//Remember-me Related
+	
+	@Bean
+	public RememberMeAuthenticationFilter getRememberMeAuthenticationFilter() throws Exception {
+		RememberMeAuthenticationFilter rememberMeAuthenticationFilter = 
+				new RememberMeAuthenticationFilter(
+						authenticationManager(), getPersistentTokenBasedRememberMeServices());		
+		return rememberMeAuthenticationFilter;
+	}
+
+	@Bean
+	public PersistentTokenBasedRememberMeServices getPersistentTokenBasedRememberMeServices() {		
+
+        JdbcTokenRepositoryImpl tokenRepositoryImpl = new JdbcTokenRepositoryImpl();
+        tokenRepositoryImpl.setDataSource(dataSource);
+        
+		PersistentTokenBasedRememberMeServices tokenBasedService = new PersistentTokenBasedRememberMeServices(
+				REMEMBER_ME_KEY, userDetailsService, tokenRepositoryImpl);
+		tokenBasedService.setParameter(REMEMBER_ME_PARAMETER);
+		tokenBasedService.setTokenValiditySeconds(60 * 60 * 24);
+		return tokenBasedService;
 	}
 
 }
