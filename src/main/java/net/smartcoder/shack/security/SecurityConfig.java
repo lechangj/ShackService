@@ -67,6 +67,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	private static final String API_LOGIN_URL = "/api/authenticate";
 	private static final String REMEMBER_ME_KEY = "shack-key";
 	private static final String REMEMBER_ME_PARAMETER = "remember-me";
+	private static final String LOGOUT = "/api/logout";
 
 	@Autowired
 	@Qualifier("customUserDetailsService")
@@ -77,6 +78,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Autowired
     private ApiAuthenticationFailureHandler apiAuthenticationFailureHandler;
+
+    @Autowired
+    private ApiLogoutSuccessHandler logoutSuccessHandler;
 
     @Autowired
     private RestAuthenticationEntryPoint restAuthenticationEntryPoint;
@@ -119,12 +123,16 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 				.accessDeniedHandler(restAccessDeniedHandler);	
 		
 		http.csrf()
-			.csrfTokenRepository(csrfTokenRepository()).and()
-			.addFilterAfter(csrfHeaderFilter(), CsrfFilter.class);
+			.csrfTokenRepository(csrfTokenRepository());
 		
 		http.addFilterAfter(authFilter(), ApiRequestHeaderAuthenticationFilter.class)
 			.addFilter(preAuthFilter())
+			.addFilterAfter(csrfHeaderFilter(), CsrfFilter.class)
 			.addFilterBefore(getRememberMeAuthenticationFilter(), RememberMeAuthenticationFilter.class);
+		
+		http.logout().logoutUrl(LOGOUT)
+			.logoutSuccessHandler(logoutSuccessHandler)
+			.logoutSuccessUrl(API_CAR_LIST_URL);
 
 	}
 
@@ -188,7 +196,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 					log.info("token: " + token);
 					if (cookie==null || token!=null && !token.equals(cookie.getValue())) {
 						cookie = new Cookie(ServerConstants.XSRF_TOKEN, token);
-						cookie.setPath(request.getContextPath());
+						log.info("ContextPath: " + request.getContextPath());
+						cookie.setPath(request.getContextPath()+"/");
 						response.addCookie(cookie);
 					}
 				}
