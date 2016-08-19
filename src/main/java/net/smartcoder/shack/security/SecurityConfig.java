@@ -113,10 +113,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	protected void configure(HttpSecurity http) throws Exception {
 
 		http.authorizeRequests()
+//        	.antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
         		.antMatchers(API_CAR_LIST_URL).permitAll()
 				.anyRequest().authenticated()
                 .antMatchers(API_USER_URL).hasRole("USER");
-//                .antMatchers(API_LOGIN_URL).anonymous();
+//                .antMatchers(API_LOGIN_URL).permitAll();
 		
 		http.exceptionHandling()
 				.authenticationEntryPoint(restAuthenticationEntryPoint)
@@ -138,7 +139,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Override
 	public void configure(WebSecurity web) throws Exception {
-		web.ignoring().antMatchers(HttpMethod.GET, "/resources/*");
+		web.ignoring().antMatchers(HttpMethod.GET, "/resources/*")
+						.antMatchers(HttpMethod.OPTIONS, "/**");
 	}
 
 	@Bean
